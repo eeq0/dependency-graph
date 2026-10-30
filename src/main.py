@@ -4,6 +4,7 @@ from functools import partial
 
 from cargo_repo import get_dependency_names
 from config import PACKAGE, REPOSITORY, REVERSE, TEST_MODE, load_config
+from dot import to_dot
 from errors import ConfigError, RepositoryError
 from graph import build_graph, reverse_edges
 from test_repo import get_test_dependencies, read_test_repo
@@ -20,25 +21,6 @@ def print_error(title, err):
         print(f"  {line}", file=sys.stderr)
 
 
-def print_graph(root, graph):
-    """Вывести граф: каждый пакет и его прямые зависимости."""
-    print(f"Граф зависимостей пакета {root} (обход BFS):")
-    for name, dependencies in graph.items():
-        targets = ", ".join(dependencies) or "(нет зависимостей)"
-        print(f"  {name} -> {targets}")
-    print(f"Всего пакетов: {len(graph)}")
-
-
-def print_reverse(root, graph):
-    """Вывести обратные зависимости: кто зависит от каждого пакета."""
-    print(f"Обратные зависимости пакета {root} (обход BFS):")
-    for name, dependents in graph.items():
-        sources = ", ".join(dependents) or "(от него никто не зависит)"
-        print(f"  {name} <- {sources}")
-    others = [name for name in graph if name != root]
-    print(f"От пакета {root} зависят: {', '.join(others) or 'никто'}")
-
-
 def make_source(config):
     """Выбрать, откуда брать рёбра графа: тестовый файл или crates.io."""
     if config[TEST_MODE]:
@@ -50,15 +32,14 @@ def make_source(config):
 
 
 def run(config):
-    """Построить и вывести граф зависимостей пакета из конфигурации."""
+    """Построить граф пакета и вывести его на языке Graphviz (DOT)."""
     package = config[PACKAGE]
     try:
         graph = build_graph(package, make_source(config))
     except RepositoryError as err:
         print_error(f"ошибка репозитория (пакет {package})", err)
         return EXIT_ERROR
-    show = print_reverse if config[REVERSE] else print_graph
-    show(package, graph)
+    print(to_dot(package, graph, config[REVERSE]))
     return 0
 
 

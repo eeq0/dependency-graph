@@ -20,6 +20,8 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
    тестового репозитория.
 4. Дополнительные операции: режим вывода обратных зависимостей (какие
    пакеты зависят от заданного) тем же обходом BFS.
+5. Визуализация: граф выводится на экран на языке диаграмм Graphviz
+   (DOT), результаты сравнены с штатным инструментом `cargo tree`.
 
 ### Структура проекта
 
@@ -30,6 +32,7 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
       cargo_repo.py    получение прямых зависимостей из crates.io
       test_repo.py     чтение тестового репозитория из файла
       graph.py         обход BFS с рекурсией, переворот рёбер графа
+      dot.py           описание графа на языке Graphviz (DOT)
       errors.py        исключения ConfigError и RepositoryError
     tests/             автотесты (unittest)
     examples/
@@ -38,6 +41,7 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
       stage3/          примеры конфигураций этапа 3
         repos/         тестовые репозитории: ромб, циклы, ошибки
       stage4/          примеры обратных зависимостей (те же репозитории)
+      stage5/          примеры визуализации: serde, rand, clap и тестовые
       test_repo.txt    простой тестовый репозиторий
     scripts/           скрипты запуска тестов и демонстрации
     config.yaml        конфигурация по умолчанию
@@ -99,17 +103,9 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
 `A -> B -> C -> A` и пакет, зависящий от самого себя, не приводят
 к бесконечной работе, а каждое ребро выводится один раз.
 
-Вывод: пакеты в порядке обхода и их прямые зависимости.
-
-    Граф зависимостей пакета A (обход BFS):
-      A -> B, C
-      B -> D
-      C -> D
-      D -> (нет зависимостей)
-    Всего пакетов: 4
-
-Вывод только прямых зависимостей был нужен на этапе 2, а вывод
-параметров «ключ = значение» на этапе 1; оба убраны.
+На этапах 3 и 4 граф выводился текстом («A -> B, C»), с этапа 5 он
+выводится на языке Graphviz. Вывод прямых зависимостей был нужен
+только на этапе 2, а вывод параметров «ключ = значение» на этапе 1.
 
 ### Обратные зависимости (этап 4)
 
@@ -119,17 +115,173 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
 рёбрам: функция `reverse_edges` из описания «A зависит от B и C»
 делает «от B зависит A, от C зависит A». Циклы обрабатываются так же.
 
-    Обратные зависимости пакета D (обход BFS):
-      D <- B, C
-      B <- A
-      C <- A
-      A <- (от него никто не зависит)
-    От пакета D зависят: B, C, A
+Для пакета D из ромба (A -> B, C -> D) получаются B, C и через них A.
+На языке Graphviz стрелки по-прежнему означают «зависит от»:
+
+    digraph dependencies {
+        node [shape=box];
+        "D" [style=filled, fillcolor=lightblue];
+        "B" -> "D";
+        "C" -> "D";
+        "A" -> "B";
+        "A" -> "C";
+    }
 
 Режим работает с тестовым репозиторием: чтобы найти все пакеты, которые
 зависят от заданного, нужно знать весь репозиторий. В crates.io
 от популярных пакетов зависят десятки тысяч других, поэтому при
 `test_mode: false` параметр `reverse: true` считается ошибкой.
+
+### Визуализация на языке Graphviz (этап 5)
+
+Граф, построенный обходом BFS, переводится в текст на языке диаграмм
+Graphviz (`src/dot.py`) и выводится на экран. Каждое ребро `"A" -> "B"`
+означает «A зависит от B», анализируемый пакет выделен цветом, каждый
+пакет и каждое ребро встречаются один раз.
+
+Нарисовать картинку можно программой Graphviz или в браузере
+(например, https://dreampuf.github.io/GraphvizOnline, вставить вывод):
+
+    sh run.sh examples/stage5/serde.yaml | dot -Tpng -o serde.png
+
+Примеры для трёх пакетов (`sh scripts/stage5_demo.sh`):
+
+    $ sh run.sh examples/stage5/serde.yaml
+    digraph dependencies {
+        node [shape=box];
+        "serde" [style=filled, fillcolor=lightblue];
+        "serde" -> "serde_core";
+        "serde_core" -> "serde_derive";
+        "serde_derive" -> "proc-macro2";
+        "serde_derive" -> "quote";
+        "serde_derive" -> "syn";
+        "proc-macro2" -> "unicode-ident";
+        "quote" -> "proc-macro2";
+        "syn" -> "proc-macro2";
+        "syn" -> "unicode-ident";
+    }
+
+    $ sh run.sh examples/stage5/rand.yaml
+    digraph dependencies {
+        node [shape=box];
+        "rand" [style=filled, fillcolor=lightblue];
+        "rand" -> "rand_core";
+    }
+
+    $ sh run.sh examples/stage5/clap.yaml
+    digraph dependencies {
+        node [shape=box];
+        "clap" [style=filled, fillcolor=lightblue];
+        "clap" -> "clap_builder";
+        "clap_builder" -> "anstyle";
+        "clap_builder" -> "clap_lex";
+    }
+
+### Сравнение с cargo tree
+
+Штатный инструмент Cargo для просмотра зависимостей: `cargo tree`.
+Для сравнения создан пустой проект с зависимостями `serde = "1"`,
+`rand = "0.10"`, `clap = "4"` и выполнено `cargo tree -p ИМЯ`
+(cargo 1.97.0, версии пакетов на 30.10.2026).
+
+**serde**
+
+    $ cargo tree -p serde
+    serde v1.0.229
+    └── serde_core v1.0.229
+
+    $ cargo tree -p serde --target all
+    serde v1.0.229
+    └── serde_core v1.0.229
+        └── serde_derive v1.0.229 (proc-macro)
+            ├── proc-macro2 v1.0.107
+            │   └── unicode-ident v1.0.27
+            ├── quote v1.0.47
+            │   └── proc-macro2 v1.0.107 (*)
+            └── syn v3.0.9
+                ├── proc-macro2 v1.0.107 (*)
+                ├── quote v1.0.47 (*)
+                └── unicode-ident v1.0.27
+
+Расхождение 1, платформы. Зависимость serde_core -> serde_derive
+записана с условием `target = cfg(any())`, которое не выполняется ни
+на одной платформе (так авторы serde связывают версии двух пакетов).
+`cargo tree` проверяет такие условия и по умолчанию показывает только
+зависимости для текущей платформы. Наш инструмент условия `target`
+не проверяет и берёт зависимости для всех платформ. С флагом
+`--target all` cargo показывает те же 7 пакетов.
+
+Расхождение 2, features. Ребра syn -> quote у нас нет: эта
+зависимость необязательная (`optional`) и подключается возможностью
+`printing`, которую включает serde_derive. Наш инструмент
+необязательные зависимости не берёт.
+
+**rand**
+
+    $ cargo tree -p rand
+    rand v0.10.3
+    ├── chacha20 v0.10.2
+    │   ├── cfg-if v1.0.5
+    │   ├── cpufeatures v0.3.1
+    │   └── rand_core v0.10.1
+    ├── getrandom v0.4.3
+    │   ├── cfg-if v1.0.5
+    │   ├── libc v0.2.191
+    │   └── rand_core v0.10.1
+    └── rand_core v0.10.1
+
+Расхождение, features. chacha20 и getrandom у rand необязательные,
+их подключают возможности по умолчанию (`default = ["std", "std_rng",
+"sys_rng", "thread_rng"]`). Cargo включает возможности по умолчанию,
+наш инструмент их не учитывает. Если отключить их
+(`rand = { version = "0.10", default-features = false }`), вывод
+совпадает с нашим:
+
+    $ cargo tree -p rand
+    rand v0.10.3
+    └── rand_core v0.10.1
+
+**clap**
+
+    $ cargo tree -p clap
+    clap v4.6.7
+    └── clap_builder v4.6.7
+        ├── anstream v1.0.0
+        │   ├── anstyle v1.0.14
+        │   ├── anstyle-parse v1.0.0
+        │   │   └── utf8parse v0.2.2
+        │   ├── anstyle-query v1.1.5
+        │   ├── colorchoice v1.0.5
+        │   ├── is_terminal_polyfill v1.70.2
+        │   └── utf8parse v0.2.2
+        ├── anstyle v1.0.14
+        ├── clap_lex v1.1.1
+        └── strsim v0.11.1
+
+Расхождение, features. anstream и strsim у clap_builder необязательные,
+их подключают возможности clap по умолчанию `color` и `suggestions`.
+С `clap = { version = "4", default-features = false, features = ["std"] }`
+вывод совпадает с нашим:
+
+    $ cargo tree -p clap
+    clap v4.6.7
+    └── clap_builder v4.6.7
+        ├── anstyle v1.0.14
+        └── clap_lex v1.1.1
+
+**Общие отличия**
+
+- `cargo tree` рисует дерево: общая зависимость повторяется под каждым
+  пакетом, а повторы помечаются `(*)`. У нас граф: каждый пакет и
+  каждое ребро выводятся один раз, у общей зависимости несколько
+  входящих стрелок.
+- `cargo tree` показывает версии. Мы берём последнюю стабильную версию
+  каждого пакета, а cargo выбирает последнюю версию, подходящую под
+  требование (например, `syn ^3`) и под версию Rust. Для этих примеров
+  версии совпали, для старых пакетов они могут отличаться.
+- Необязательные зависимости (features) и условия платформ (`target`)
+  наш инструмент не вычисляет: это работа настоящего менеджера пакетов,
+  а готовые менеджеры пакетов по условию задания использовать нельзя.
 
 ### Тестовый репозиторий
 
@@ -193,6 +345,7 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
     sh scripts/stage2_demo.sh          пакеты crates.io и ошибки репозитория
     sh scripts/stage3_demo.sh          граф на разных тестовых репозиториях
     sh scripts/stage4_demo.sh          обратные зависимости
+    sh scripts/stage5_demo.sh          граф на языке Graphviz для serde, rand, clap
 
 Скрипт `stage3_demo.sh` запускает приложение со всеми файлами из
 `examples/stage3`:
@@ -220,7 +373,14 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
 - `err_*`: неизвестный пакет, неописанный пакет, неверное значение
   `reverse`, `reverse: true` для crates.io.
 
-Для `stage2_demo.sh` и примеров `real_*` нужен доступ в интернет.
+Скрипт `stage5_demo.sh` выводит граф на языке Graphviz для трёх пакетов
+crates.io (serde, rand, clap) и для большого тестового репозитория
+в прямом и обратном режимах.
+
+Начиная с этапа 5 все примеры выводят граф на языке Graphviz.
+
+Для `stage2_demo.sh`, `stage5_demo.sh` и примеров `real_*` нужен доступ
+в интернет.
 Автотесты сеть не используют: ответы сервера в них подменяются.
 
 ## 4. Примеры использования
@@ -228,48 +388,30 @@ Rust (Cargo). Готовые менеджеры пакетов и библиот
 Цикл в тестовом репозитории:
 
     $ sh run.sh examples/stage3/test_cycle.yaml
-    Граф зависимостей пакета A (обход BFS):
-      A -> B
-      B -> C
-      C -> A
-    Всего пакетов: 3
+    digraph dependencies {
+        node [shape=box];
+        "A" [style=filled, fillcolor=lightblue];
+        "A" -> "B";
+        "B" -> "C";
+        "C" -> "A";
+    }
 
-Большой тестовый репозиторий с двумя циклами (A -> D -> A и C -> G -> C):
-
-    $ sh run.sh examples/stage3/test_big.yaml
-    Граф зависимостей пакета A (обход BFS):
-      A -> B, C, D
-      B -> E, F
-      C -> F, G
-      D -> A
-      E -> H
-      F -> H
-      G -> C
-      H -> (нет зависимостей)
-    Всего пакетов: 8
-
-Настоящий пакет из crates.io:
-
-    $ sh run.sh examples/stage3/real_serde.yaml
-    Граф зависимостей пакета serde (обход BFS):
-      serde -> serde_core
-      serde_core -> serde_derive
-      serde_derive -> proc-macro2, quote, syn
-      proc-macro2 -> unicode-ident
-      quote -> proc-macro2
-      syn -> proc-macro2, unicode-ident
-      unicode-ident -> (нет зависимостей)
-    Всего пакетов: 7
-
-Обратные зависимости в большом графе:
+Обратные зависимости пакета G в большом графе с двумя циклами:
 
     $ sh run.sh examples/stage4/big_G.yaml
-    Обратные зависимости пакета G (обход BFS):
-      G <- C
-      C <- A, G
-      A <- D
-      D <- A
-    От пакета G зависят: C, A, D
+    digraph dependencies {
+        node [shape=box];
+        "G" [style=filled, fillcolor=lightblue];
+        "C" -> "G";
+        "A" -> "C";
+        "G" -> "C";
+        "D" -> "A";
+        "A" -> "D";
+    }
+
+Настоящий пакет из crates.io и картинка через Graphviz:
+
+    $ sh run.sh examples/stage5/clap.yaml | dot -Tpng -o clap.png
 
 Ошибка в тестовом репозитории:
 

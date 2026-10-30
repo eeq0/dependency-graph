@@ -31,44 +31,35 @@ def make_test_config(test, repo_text, package="A", reverse="false"):
 
 
 class MainTest(unittest.TestCase):
-    """Вывод графа и ошибок."""
+    """Вывод графа на языке DOT и ошибок."""
 
     def test_test_repo_graph(self):
-        """Граф тестового репозитория с циклом."""
+        """Граф тестового репозитория с циклом на языке DOT."""
         code, out, _ = run_main([make_test_config(self, "A: B C\nB: A\nC:")])
         self.assertEqual(code, 0)
-        self.assertEqual(out, "Граф зависимостей пакета A (обход BFS):\n"
-                              "  A -> B, C\n"
-                              "  B -> A\n"
-                              "  C -> (нет зависимостей)\n"
-                              "Всего пакетов: 3\n")
+        self.assertEqual(out, "digraph dependencies {\n"
+                              "    node [shape=box];\n"
+                              '    "A" [style=filled, fillcolor=lightblue];\n'
+                              '    "A" -> "B";\n'
+                              '    "A" -> "C";\n'
+                              '    "B" -> "A";\n'
+                              "}\n")
 
     def test_reverse(self):
-        """Обратные зависимости пакета D в ромбе."""
+        """Обратные зависимости D в ромбе: стрелки идут к D."""
         config = make_test_config(self, "A: B C\nB: D\nC: D\nD:", "D",
                                   "true")
         code, out, _ = run_main([config])
         self.assertEqual(code, 0)
-        self.assertEqual(out, "Обратные зависимости пакета D (обход BFS):\n"
-                              "  D <- B, C\n"
-                              "  B <- A\n"
-                              "  C <- A\n"
-                              "  A <- (от него никто не зависит)\n"
-                              "От пакета D зависят: B, C, A\n")
-
-    def test_reverse_nobody(self):
-        """От пакета никто не зависит."""
-        config = make_test_config(self, "A: B\nB:", "A", "true")
-        _, out, _ = run_main([config])
-        self.assertIn("От пакета A зависят: никто", out)
+        for edge in ('"B" -> "D"', '"C" -> "D"', '"A" -> "B"', '"A" -> "C"'):
+            self.assertIn(edge, out)
 
     def test_real_repo_graph(self):
         """Граф из crates.io (ответы подменяются)."""
         with mock.patch(FETCH, lambda repo, name: FAKE_CRATES[name]):
             code, out, _ = run_main([helpers.write_temp(self, REAL_CONFIG)])
         self.assertEqual(code, 0)
-        self.assertIn("  serde -> serde_core\n", out)
-        self.assertIn("Всего пакетов: 2", out)
+        self.assertIn('    "serde" -> "serde_core";\n', out)
 
     def test_repository_error(self):
         """Ошибка репозитория: код 1 и сообщение в stderr."""
