@@ -1,0 +1,3 @@
+package: A
+repository: examples/stage3/repos/err_syntax.txt
+test_mode: true

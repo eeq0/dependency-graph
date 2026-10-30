@@ -85,3 +85,14 @@ def get_direct_dependencies(repository, package):
     version = get_latest_version(repository, package)
     url = f"{crate_url(repository, package)}/{version}/dependencies"
     return version, parse_dependencies(_get_json(url))
+
+
+def get_dependency_names(repository, package):
+    """Имена обязательных прямых зависимостей пакета для построения графа.
+
+    Необязательные зависимости подключаются только через features,
+    поэтому в граф не входят.
+    """
+    _, dependencies = get_direct_dependencies(repository, package)
+    return [name for name, (_, optional) in dependencies.items()
+            if not optional]

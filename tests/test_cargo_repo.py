@@ -5,7 +5,8 @@ import urllib.error
 from unittest import mock
 
 import helpers
-from cargo_repo import get_direct_dependencies, parse_dependencies
+from cargo_repo import (get_dependency_names, get_direct_dependencies,
+                        parse_dependencies)
 from errors import RepositoryError
 
 REPO = "https://crates.io"
@@ -53,6 +54,13 @@ class FetchTest(unittest.TestCase):
         self.assertEqual(urls, [
             REPO + "/api/v1/crates/serde",
             REPO + "/api/v1/crates/serde/1.0.0/dependencies"])
+
+    def test_names_for_graph(self):
+        """Для графа берутся только обязательные зависимости."""
+        with mock.patch(URLOPEN, side_effect=[helpers.answer(CRATE),
+                                              helpers.answer(DEPS)]):
+            names = get_dependency_names(REPO, "serde")
+        self.assertEqual(names, ["serde_core"])
 
     def test_package_not_found(self):
         """Ответ 404 означает, что такого пакета нет."""

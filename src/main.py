@@ -1,9 +1,12 @@
 """Точка входа: python3 src/main.py [путь к конфигурационному файлу]."""
 import sys
+from functools import partial
 
-from cargo_repo import get_direct_dependencies
+from cargo_repo import get_dependency_names
 from config import PACKAGE, REPOSITORY, TEST_MODE, load_config
 from errors import ConfigError, RepositoryError
+from graph import build_graph
+from test_repo import get_test_dependencies, read_test_repo
 
 DEFAULT_CONFIG = "config.yaml"
 MAX_ARGS = 1
@@ -17,30 +20,32 @@ def print_error(title, err):
         print(f"  {line}", file=sys.stderr)
 
 
-def print_dependencies(package, version, dependencies):
-    """Вывести все прямые зависимости пакета."""
-    print(f"Прямые зависимости пакета {package} {version}:")
-    if not dependencies:
-        print("  нет зависимостей")
-    for name, (requirement, optional) in sorted(dependencies.items()):
-        mark = " (необязательная)" if optional else ""
-        print(f"  {name} {requirement}{mark}")
+def print_graph(root, graph):
+    """Вывести граф: каждый пакет и его прямые зависимости."""
+    print(f"Граф зависимостей пакета {root} (обход BFS):")
+    for name, dependencies in graph.items():
+        targets = ", ".join(dependencies) or "(нет зависимостей)"
+        print(f"  {name} -> {targets}")
+    print(f"Всего пакетов: {len(graph)}")
+
+
+def make_source(config):
+    """Выбрать, откуда брать зависимости: тестовый файл или crates.io."""
+    if config[TEST_MODE]:
+        packages = read_test_repo(config[REPOSITORY])
+        return partial(get_test_dependencies, packages)
+    return partial(get_dependency_names, config[REPOSITORY])
 
 
 def run(config):
-    """Получить и вывести прямые зависимости пакета из конфигурации."""
-    if config[TEST_MODE]:
-        print("режим тестового репозитория появится на этапе 3",
-              file=sys.stderr)
-        return EXIT_ERROR
+    """Построить и вывести граф зависимостей пакета из конфигурации."""
     package = config[PACKAGE]
     try:
-        version, dependencies = get_direct_dependencies(
-            config[REPOSITORY], package)
+        graph = build_graph(package, make_source(config))
     except RepositoryError as err:
         print_error(f"ошибка репозитория (пакет {package})", err)
         return EXIT_ERROR
-    print_dependencies(package, version, dependencies)
+    print_graph(package, graph)
     return 0
 
 

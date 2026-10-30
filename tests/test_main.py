@@ -8,8 +8,10 @@ import helpers
 from errors import RepositoryError
 from main import main
 
-CONFIG = "package: serde\nrepository: https://crates.io\ntest_mode: false\n"
-FETCH = "main.get_direct_dependencies"
+REAL_CONFIG = ("package: serde\nrepository: https://crates.io\n"
+               "test_mode: false\n")
+FETCH = "main.get_dependency_names"
+FAKE_CRATES = {"serde": ["serde_core"], "serde_core": []}
 
 
 def run_main(argv):
@@ -20,40 +22,48 @@ def run_main(argv):
     return code, out.getvalue(), err.getvalue()
 
 
+def make_test_config(test, repo_text, package="A"):
+    """Создать файл тестового репозитория и конфигурацию для него."""
+    repo = helpers.write_temp(test, repo_text, ".txt")
+    return helpers.write_temp(
+        test, f"package: {package}\nrepository: {repo}\ntest_mode: true\n")
+
+
 class MainTest(unittest.TestCase):
-    """Вывод зависимостей и ошибок."""
+    """Вывод графа и ошибок."""
 
-    def test_prints_dependencies(self):
-        """Выводятся все прямые зависимости, отсортированные по имени."""
-        deps = {"serde_derive": ("^1", True), "serde_core": ("=1.0", False)}
-        with mock.patch(FETCH, return_value=("1.0", deps)):
-            code, out, _ = run_main([helpers.write_temp(self, CONFIG)])
+    def test_test_repo_graph(self):
+        """Граф тестового репозитория с циклом."""
+        code, out, _ = run_main([make_test_config(self, "A: B C\nB: A\nC:")])
         self.assertEqual(code, 0)
-        self.assertEqual(out, "Прямые зависимости пакета serde 1.0:\n"
-                              "  serde_core =1.0\n"
-                              "  serde_derive ^1 (необязательная)\n")
+        self.assertEqual(out, "Граф зависимостей пакета A (обход BFS):\n"
+                              "  A -> B, C\n"
+                              "  B -> A\n"
+                              "  C -> (нет зависимостей)\n"
+                              "Всего пакетов: 3\n")
 
-    def test_no_dependencies(self):
-        """Пакет без зависимостей."""
-        with mock.patch(FETCH, return_value=("1.0", {})):
-            _, out, _ = run_main([helpers.write_temp(self, CONFIG)])
-        self.assertIn("нет зависимостей", out)
+    def test_real_repo_graph(self):
+        """Граф из crates.io (ответы подменяются)."""
+        with mock.patch(FETCH, lambda repo, name: FAKE_CRATES[name]):
+            code, out, _ = run_main([helpers.write_temp(self, REAL_CONFIG)])
+        self.assertEqual(code, 0)
+        self.assertIn("  serde -> serde_core\n", out)
+        self.assertIn("Всего пакетов: 2", out)
 
     def test_repository_error(self):
         """Ошибка репозитория: код 1 и сообщение в stderr."""
-        error = RepositoryError("пакет не найден в репозитории: ...")
-        with mock.patch(FETCH, side_effect=error):
-            code, out, err = run_main([helpers.write_temp(self, CONFIG)])
+        code, out, err = run_main([make_test_config(self, "A: B")])
         self.assertEqual((code, out), (1, ""))
-        self.assertIn("ошибка репозитория (пакет serde)", err)
+        self.assertIn("ошибка репозитория (пакет A)", err)
+        self.assertIn("B не описан", err)
 
-    def test_test_mode_not_ready(self):
-        """Тестовый репозиторий пока не поддерживается (этап 3)."""
-        repo = helpers.write_temp(self, "A: B\n", ".txt")
-        config = f"package: A\nrepository: {repo}\ntest_mode: true\n"
-        code, _, err = run_main([helpers.write_temp(self, config)])
+    def test_network_error(self):
+        """Ошибка сети при обходе реального репозитория."""
+        error = RepositoryError("не удалось подключиться к репозиторию")
+        with mock.patch(FETCH, side_effect=error):
+            code, _, err = run_main([helpers.write_temp(self, REAL_CONFIG)])
         self.assertEqual(code, 1)
-        self.assertIn("этапе 3", err)
+        self.assertIn("подключиться", err)
 
     def test_config_error(self):
         """Ошибка конфигурации: код 1 и сообщение в stderr."""

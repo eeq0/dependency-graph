@@ -1,0 +1,3 @@
+package: clap
+repository: https://crates.io
+test_mode: false

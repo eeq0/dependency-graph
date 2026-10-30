@@ -1,0 +1,3 @@
+package: A
+repository: examples/stage3/repos/single.txt
+test_mode: true

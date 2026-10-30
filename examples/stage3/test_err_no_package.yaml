@@ -1,0 +1,3 @@
+package: Z
+repository: examples/stage3/repos/diamond.txt
+test_mode: true
