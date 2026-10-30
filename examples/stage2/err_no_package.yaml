@@ -1,0 +1,3 @@
+package: no-such-crate-xyz-123
+repository: https://crates.io
+test_mode: false

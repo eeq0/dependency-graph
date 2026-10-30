@@ -1,4 +1,6 @@
-"""Общие помощники для тестов: путь к src и временные файлы."""
+"""Общие помощники для тестов: путь к src, файлы, ответы сервера."""
+import io
+import json
 import os
 import sys
 import tempfile
@@ -14,3 +16,8 @@ def write_temp(test, text, suffix=".yaml"):
         file.write(text)
     test.addCleanup(os.remove, path)
     return path
+
+
+def answer(data):
+    """Подделать ответ сервера, внутри которого JSON."""
+    return io.BytesIO(json.dumps(data).encode("utf-8"))

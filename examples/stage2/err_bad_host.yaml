@@ -1,0 +1,3 @@
+package: serde
+repository: https://no-such-host.invalid
+test_mode: false
