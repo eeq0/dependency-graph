@@ -1,0 +1,4 @@
+# Ошибки во всех трёх параметрах сразу
+package: "-bad"
+repository: ftp://crates.io
+test_mode: 1

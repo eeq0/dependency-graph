@@ -1,0 +1,4 @@
+# Ошибка: URL без http:// или https://
+package: serde
+repository: crates.io
+test_mode: false

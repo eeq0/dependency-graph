@@ -1,0 +1,5 @@
+# Ошибка: неизвестный параметр
+package: serde
+repository: https://crates.io
+test_mode: false
+depth: 3

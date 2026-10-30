@@ -1,0 +1,4 @@
+# Ошибка: некорректное имя пакета
+package: "1 bad name!"
+repository: https://crates.io
+test_mode: false

@@ -1,0 +1,4 @@
+# Режим работы с тестовым репозиторием
+package: A
+repository: examples/test_repo.txt
+test_mode: true

@@ -1,0 +1,4 @@
+# Ошибка: файл тестового репозитория не существует
+package: A
+repository: examples/no_such_repo.txt
+test_mode: true

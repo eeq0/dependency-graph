@@ -1,0 +1,4 @@
+# Ошибка: режим не true и не false
+package: serde
+repository: https://crates.io
+test_mode: maybe

@@ -1,0 +1,4 @@
+# Ошибка формата YAML: строка без двоеточия
+package serde
+repository: https://crates.io
+test_mode: false

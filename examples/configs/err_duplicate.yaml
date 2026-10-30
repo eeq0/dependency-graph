@@ -1,0 +1,5 @@
+# Ошибка формата YAML: ключ повторяется
+package: serde
+package: tokio
+repository: https://crates.io
+test_mode: false

@@ -1,0 +1,4 @@
+# Ошибка: пустое имя пакета
+package: ""
+repository: https://crates.io
+test_mode: false
