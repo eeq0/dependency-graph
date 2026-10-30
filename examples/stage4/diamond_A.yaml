@@ -1,0 +1,4 @@
+package: A
+repository: examples/stage3/repos/diamond.txt
+test_mode: true
+reverse: true

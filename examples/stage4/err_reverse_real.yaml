@@ -1,0 +1,4 @@
+package: serde
+repository: https://crates.io
+test_mode: false
+reverse: true

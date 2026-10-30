@@ -9,7 +9,10 @@ from yaml_reader import read_yaml
 PACKAGE = "package"
 REPOSITORY = "repository"
 TEST_MODE = "test_mode"
-PARAMETERS = (PACKAGE, REPOSITORY, TEST_MODE)
+REVERSE = "reverse"
+REQUIRED = (PACKAGE, REPOSITORY, TEST_MODE)
+DEFAULTS = {REVERSE: False}
+PARAMETERS = REQUIRED + tuple(DEFAULTS)
 PACKAGE_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 URL_SCHEMES = ("http", "https")
 
@@ -25,11 +28,20 @@ def _check_package(value):
     return None
 
 
-def _check_test_mode(value):
-    """Режим работы с тестовым репозиторием: true или false."""
+def _check_flag(name, value):
+    """Режим работы (test_mode, reverse): true или false."""
     if not isinstance(value, bool):
-        return f"{TEST_MODE}: ожидается true или false, получено «{value}»"
+        return f"{name}: ожидается true или false, получено «{value}»"
     return None
+
+
+def _check_reverse(value, test_mode):
+    """Обратные зависимости строятся только по тестовому репозиторию."""
+    error = _check_flag(REVERSE, value)
+    if error is None and value and test_mode is False:
+        return (f"{REVERSE}: обратные зависимости поддерживаются "
+                f"только при {TEST_MODE}: true")
+    return error
 
 
 def _check_url(value):
@@ -53,9 +65,9 @@ def _check_repository(value, test_mode):
 
 
 def _check_keys(values):
-    """Найти пропущенные и лишние параметры."""
+    """Найти пропущенные обязательные и лишние параметры."""
     errors = [f"{name}: параметр не задан"
-              for name in PARAMETERS if name not in values]
+              for name in REQUIRED if name not in values]
     errors += [f"{name}: неизвестный параметр"
                for name in values if name not in PARAMETERS]
     return errors
@@ -66,9 +78,11 @@ def validate(values):
     errors = _check_keys(values)
     checks = (
         (PACKAGE, _check_package(values.get(PACKAGE))),
-        (TEST_MODE, _check_test_mode(values.get(TEST_MODE))),
+        (TEST_MODE, _check_flag(TEST_MODE, values.get(TEST_MODE))),
         (REPOSITORY, _check_repository(values.get(REPOSITORY),
                                        values.get(TEST_MODE))),
+        (REVERSE, _check_reverse(values.get(REVERSE),
+                                 values.get(TEST_MODE))),
     )
     errors += [message for name, message in checks
                if message and name in values]
@@ -79,9 +93,11 @@ def load_config(path):
     """Прочитать конфигурацию из YAML-файла и проверить её.
 
     Если найдены ошибки, бросается ConfigError со всеми ошибками сразу.
+    Необязательные параметры получают значения по умолчанию.
     """
     values = read_yaml(path)
     errors = validate(values)
     if errors:
         raise ConfigError("\n".join(errors))
-    return {name: values[name] for name in PARAMETERS}
+    return {name: values.get(name, DEFAULTS.get(name))
+            for name in PARAMETERS}

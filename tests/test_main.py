@@ -22,11 +22,12 @@ def run_main(argv):
     return code, out.getvalue(), err.getvalue()
 
 
-def make_test_config(test, repo_text, package="A"):
+def make_test_config(test, repo_text, package="A", reverse="false"):
     """Создать файл тестового репозитория и конфигурацию для него."""
     repo = helpers.write_temp(test, repo_text, ".txt")
     return helpers.write_temp(
-        test, f"package: {package}\nrepository: {repo}\ntest_mode: true\n")
+        test, f"package: {package}\nrepository: {repo}\ntest_mode: true\n"
+              f"reverse: {reverse}\n")
 
 
 class MainTest(unittest.TestCase):
@@ -42,6 +43,25 @@ class MainTest(unittest.TestCase):
                               "  C -> (нет зависимостей)\n"
                               "Всего пакетов: 3\n")
 
+    def test_reverse(self):
+        """Обратные зависимости пакета D в ромбе."""
+        config = make_test_config(self, "A: B C\nB: D\nC: D\nD:", "D",
+                                  "true")
+        code, out, _ = run_main([config])
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "Обратные зависимости пакета D (обход BFS):\n"
+                              "  D <- B, C\n"
+                              "  B <- A\n"
+                              "  C <- A\n"
+                              "  A <- (от него никто не зависит)\n"
+                              "От пакета D зависят: B, C, A\n")
+
+    def test_reverse_nobody(self):
+        """От пакета никто не зависит."""
+        config = make_test_config(self, "A: B\nB:", "A", "true")
+        _, out, _ = run_main([config])
+        self.assertIn("От пакета A зависят: никто", out)
+
     def test_real_repo_graph(self):
         """Граф из crates.io (ответы подменяются)."""
         with mock.patch(FETCH, lambda repo, name: FAKE_CRATES[name]):
@@ -56,6 +76,13 @@ class MainTest(unittest.TestCase):
         self.assertEqual((code, out), (1, ""))
         self.assertIn("ошибка репозитория (пакет A)", err)
         self.assertIn("B не описан", err)
+
+    def test_reverse_for_real_repo(self):
+        """reverse: true без тестового репозитория: ошибка конфигурации."""
+        config = helpers.write_temp(self, REAL_CONFIG + "reverse: true\n")
+        code, _, err = run_main([config])
+        self.assertEqual(code, 1)
+        self.assertIn("ошибка конфигурации", err)
 
     def test_network_error(self):
         """Ошибка сети при обходе реального репозитория."""

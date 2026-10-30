@@ -1,0 +1,4 @@
+package: A
+repository: examples/stage3/repos/err_undefined.txt
+test_mode: true
+reverse: true

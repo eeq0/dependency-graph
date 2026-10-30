@@ -16,8 +16,9 @@ class ParseTestRepoTest(unittest.TestCase):
                          {"A": ["B", "C"], "B": [], "C": ["A"]})
 
     def test_errors(self):
-        """Нет двоеточия, плохое имя, пустое имя, повтор пакета."""
-        for text in ("A B", "A: b", "a: B", ": B", "A1: B", "A:\nA: B"):
+        """Нет двоеточия, плохое имя, повтор, неописанный пакет."""
+        for text in ("A B", "A: b", "a: B", ": B", "A1: B", "A:\nA: B",
+                     "A: B"):
             with self.assertRaises(RepositoryError, msg=text):
                 parse_test_repo(text)
 

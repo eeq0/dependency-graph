@@ -3,9 +3,9 @@ import sys
 from functools import partial
 
 from cargo_repo import get_dependency_names
-from config import PACKAGE, REPOSITORY, TEST_MODE, load_config
+from config import PACKAGE, REPOSITORY, REVERSE, TEST_MODE, load_config
 from errors import ConfigError, RepositoryError
-from graph import build_graph
+from graph import build_graph, reverse_edges
 from test_repo import get_test_dependencies, read_test_repo
 
 DEFAULT_CONFIG = "config.yaml"
@@ -29,10 +29,22 @@ def print_graph(root, graph):
     print(f"Всего пакетов: {len(graph)}")
 
 
+def print_reverse(root, graph):
+    """Вывести обратные зависимости: кто зависит от каждого пакета."""
+    print(f"Обратные зависимости пакета {root} (обход BFS):")
+    for name, dependents in graph.items():
+        sources = ", ".join(dependents) or "(от него никто не зависит)"
+        print(f"  {name} <- {sources}")
+    others = [name for name in graph if name != root]
+    print(f"От пакета {root} зависят: {', '.join(others) or 'никто'}")
+
+
 def make_source(config):
-    """Выбрать, откуда брать зависимости: тестовый файл или crates.io."""
+    """Выбрать, откуда брать рёбра графа: тестовый файл или crates.io."""
     if config[TEST_MODE]:
         packages = read_test_repo(config[REPOSITORY])
+        if config[REVERSE]:
+            packages = reverse_edges(packages)
         return partial(get_test_dependencies, packages)
     return partial(get_dependency_names, config[REPOSITORY])
 
@@ -45,7 +57,8 @@ def run(config):
     except RepositoryError as err:
         print_error(f"ошибка репозитория (пакет {package})", err)
         return EXIT_ERROR
-    print_graph(package, graph)
+    show = print_reverse if config[REVERSE] else print_graph
+    show(package, graph)
     return 0
 
 

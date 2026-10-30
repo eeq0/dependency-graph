@@ -1,0 +1,4 @@
+package: H
+repository: examples/stage3/repos/big.txt
+test_mode: true
+reverse: true

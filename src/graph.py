@@ -7,6 +7,9 @@
 
 Циклы (A -> B -> A) не приводят к бесконечному обходу: пакет, который
 уже есть в графе или уже стоит в очереди, второй раз не добавляется.
+
+Обратные зависимости строятся тем же обходом, но по перевёрнутым рёбрам:
+вместо «от чего зависит пакет» берётся «какие пакеты зависят от него».
 """
 
 
@@ -33,3 +36,15 @@ def build_graph(root, get_dependencies):
     graph = {}
     _visit_level([root], get_dependencies, graph)
     return graph
+
+
+def reverse_edges(packages):
+    """Перевернуть рёбра: «пакет -> пакеты, которые от него зависят».
+
+    packages: словарь «пакет -> список его прямых зависимостей».
+    """
+    reverse = {name: [] for name in packages}
+    for name, dependencies in packages.items():
+        for dependency in dependencies:
+            reverse.setdefault(dependency, []).append(name)
+    return reverse

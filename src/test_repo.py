@@ -40,6 +40,16 @@ def _parse_line(line, number):
     return name, dependencies
 
 
+def _check_described(packages):
+    """Каждый пакет, на который есть ссылка, должен быть описан."""
+    for name, dependencies in packages.items():
+        for dependency in dependencies:
+            if dependency not in packages:
+                raise RepositoryError(
+                    f"пакет {dependency} не описан в тестовом репозитории "
+                    f"(на него ссылается {name})")
+
+
 def parse_test_repo(text):
     """Разобрать текст тестового репозитория в словарь «пакет -> список»."""
     packages = {}
@@ -52,6 +62,7 @@ def parse_test_repo(text):
             raise RepositoryError(
                 f"строка {number}: пакет {name} описан повторно")
         packages[name] = dependencies
+    _check_described(packages)
     return packages
 
 

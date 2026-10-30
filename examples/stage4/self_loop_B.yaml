@@ -1,0 +1,4 @@
+package: B
+repository: examples/stage3/repos/self_loop.txt
+test_mode: true
+reverse: true
